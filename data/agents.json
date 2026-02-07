@@ -1,0 +1,62 @@
+[
+  {
+    "id": "lead",
+    "name": "Lead",
+    "emoji": "🎯",
+    "role": "Team Lead",
+    "focus": "Strategy, task assignment",
+    "status": "active",
+    "currentTask": null,
+    "lastSeen": "2026-02-07T08:24:25.155Z"
+  },
+  {
+    "id": "writer",
+    "name": "Writer",
+    "emoji": "✍️",
+    "role": "Content",
+    "focus": "Blog posts, documentation",
+    "status": "active",
+    "currentTask": null,
+    "lastSeen": "2026-02-07T08:24:25.155Z"
+  },
+  {
+    "id": "growth",
+    "name": "Growth",
+    "emoji": "🚀",
+    "role": "Marketing",
+    "focus": "SEO, campaigns",
+    "status": "active",
+    "currentTask": null,
+    "lastSeen": "2026-02-07T08:24:25.155Z"
+  },
+  {
+    "id": "dev",
+    "name": "Dev",
+    "emoji": "💻",
+    "role": "Engineering",
+    "focus": "Features, bugs, code",
+    "status": "active",
+    "currentTask": null,
+    "lastSeen": "2026-02-07T08:24:25.155Z"
+  },
+  {
+    "id": "ux",
+    "name": "UX",
+    "emoji": "🎨",
+    "role": "Product",
+    "focus": "Design, activation",
+    "status": "active",
+    "currentTask": null,
+    "lastSeen": "2026-02-07T08:24:25.155Z"
+  },
+  {
+    "id": "data",
+    "name": "Data",
+    "emoji": "📊",
+    "role": "Analytics",
+    "focus": "Metrics, reporting",
+    "status": "active",
+    "currentTask": null,
+    "lastSeen": "2026-02-07T08:24:25.155Z"
+  }
+]
