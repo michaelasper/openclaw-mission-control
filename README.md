@@ -25,32 +25,31 @@ npm install
 
 ### 2. Customize Your Agents
 
-Edit `lib/config.ts` to define your agent team:
+Edit `data/agent-config.json` to define your agent team at runtime (no rebuild required):
 
-```typescript
-export const AGENT_CONFIG = {
-  brand: {
-    name: "Your Brand",
-    subtitle: "Your Tagline",
+```json
+{
+  "brand": {
+    "name": "Your Brand",
+    "subtitle": "Your Tagline"
   },
-  agents: [
+  "agents": [
     {
-      id: "lead",
-      name: "Lead",
-      emoji: "🎯",
-      role: "Team Lead",
-      focus: "Strategy",
+      "id": "lead",
+      "name": "Lead",
+      "emoji": "🎯",
+      "role": "Team Lead",
+      "focus": "Strategy"
     },
     {
-      id: "writer",
-      name: "Writer",
-      emoji: "✍️",
-      role: "Content",
-      focus: "Blog posts",
-    },
-    // Add your agents...
-  ],
-};
+      "id": "writer",
+      "name": "Writer",
+      "emoji": "✍️",
+      "role": "Content",
+      "focus": "Blog posts"
+    }
+  ]
+}
 ```
 
 ### 3. Run the App
@@ -61,11 +60,12 @@ npm run dev
 
 Open `http://localhost:8080` (or your configured port).
 
-Data is stored locally in the `data/` directory (auto-created on first run):
+Data is stored locally in the `data/` directory:
 
 - `data/tasks.json` - All tasks
 - `data/agents.json` - Agent status
 - `data/mentions.json` - @mention records
+- `data/agent-config.json` - Runtime brand + agent definitions
 
 ## How It Works
 
@@ -94,6 +94,7 @@ Data is stored locally in the `data/` directory (auto-created on first run):
 | `/api/tasks/{id}/comments`   | POST             | Add comment        |
 | `/api/mentions?agent={id}`   | GET              | Get @mentions      |
 | `/api/mentions/read`         | POST             | Mark mentions read |
+| `/api/config`                | GET              | Runtime brand/agents |
 
 ## Example: Creating a Task
 
@@ -143,9 +144,10 @@ curl -X POST "http://localhost:8080/api/tasks/{id}/complete" \
 ├── data/                  # Local JSON data (auto-created, gitignored)
 │   ├── tasks.json
 │   ├── agents.json
-│   └── mentions.json
+│   ├── mentions.json
+│   └── agent-config.json
 ├── lib/
-│   ├── config.ts         # ⚠️ Customize agents here
+│   ├── config.ts         # Build-time default config
 │   ├── types.ts          # TypeScript types
 │   └── local-storage.ts  # Filesystem-based data layer
 └── README.md
@@ -155,18 +157,20 @@ curl -X POST "http://localhost:8080/api/tasks/{id}/complete" \
 
 ### Change Branding
 
-Edit `lib/config.ts`:
+Edit `data/agent-config.json`:
 
-```typescript
-brand: {
-  name: 'Your Brand Name',
-  subtitle: 'Your Tagline',
+```json
+{
+  "brand": {
+    "name": "Your Brand Name",
+    "subtitle": "Your Tagline"
+  }
 }
 ```
 
 ### Change Agents
 
-Edit the `agents` array in `lib/config.ts`. Each agent needs:
+Edit the `agents` array in `data/agent-config.json`. Each agent needs:
 
 - `id` - Unique identifier (used in API calls)
 - `name` - Display name
@@ -192,6 +196,51 @@ Edit `package.json`:
 npm run build
 npm start
 ```
+
+### Docker
+
+Run the app in a container with persistent local data:
+
+```bash
+docker compose up -d --build app
+```
+
+Open `http://localhost:8080`.
+
+Data is persisted in the named volume `mission-control-data` mounted at `/app/data`.
+`./data/agent-config.json` is also bind-mounted, so editing that file updates runtime config without rebuilding.
+Host OpenClaw workspaces are bind-mounted read-only from `${OPENCLAW_HOME:-/Users/michaelasper/.openclaw}` so `/api/files/...` can read deliverables.
+
+### Docker + Tailscale Serve
+
+1. Create a Tailscale env file:
+
+```bash
+cp .env.tailscale.example .env.tailscale
+# then edit .env.tailscale and set TS_AUTHKEY
+```
+
+2. Start app + tailscale sidecar:
+
+```bash
+docker compose --env-file .env.tailscale --profile tailscale up -d --build
+```
+
+3. Check logs/status:
+
+```bash
+docker compose logs -f tailscale
+docker compose ps
+```
+
+The tailscale sidecar runs:
+
+```bash
+tailscale serve --http=80 http://app:8080
+tailscale serve --https=443 http://app:8080
+```
+
+inside the container, so your tailnet can reach Mission Control via the Tailscale node hostname.
 
 ## License
 

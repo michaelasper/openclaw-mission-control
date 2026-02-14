@@ -5,6 +5,8 @@ import Link from "next/link";
 import { SerializedAgent, SerializedTask } from "@/lib/types";
 import TeamStatus from "@/components/TeamStatus";
 
+const TEAM_POLL_INTERVAL_MS = 5000;
+
 export default function TeamPage() {
   const [agents, setAgents] = useState<SerializedAgent[]>([]);
   const [tasks, setTasks] = useState<SerializedTask[]>([]);
@@ -38,8 +40,8 @@ export default function TeamPage() {
 
     fetchData();
 
-    // Poll for updates every 60 seconds
-    const interval = setInterval(fetchData, 60000);
+    // Poll for updates frequently so runtime agent config changes appear live.
+    const interval = setInterval(fetchData, TEAM_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, []);
 

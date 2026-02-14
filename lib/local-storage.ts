@@ -14,9 +14,8 @@ import {
   WorkLogAction,
   Comment,
   WorkLogEntry,
-  AGENTS,
 } from "./types";
-import { AGENT_CONFIG } from "./config";
+import { getRuntimeAgentConfig } from "./runtime-agent-config";
 import { v4 as uuidv4 } from "uuid";
 
 // Data directory path
@@ -116,6 +115,12 @@ export function serializeTask(task: Task): SerializedTask {
     deliverables = [task.deliverable, ...deliverables];
   }
 
+  // Handle backward compatibility: merge old pullRequest into pullRequests array
+  let pullRequests = task.pullRequests || [];
+  if (task.pullRequest && !pullRequests.includes(task.pullRequest)) {
+    pullRequests = [task.pullRequest, ...pullRequests];
+  }
+
   return {
     ...task,
     createdAt: task.createdAt,
@@ -123,6 +128,8 @@ export function serializeTask(task: Task): SerializedTask {
     dueDate: task.dueDate || undefined,
     deliverable: task.deliverable,
     deliverables: deliverables.length > 0 ? deliverables : undefined,
+    pullRequest: task.pullRequest,
+    pullRequests: pullRequests.length > 0 ? pullRequests : undefined,
     comments: task.comments.map((c) => ({
       ...c,
       createdAt: c.createdAt,
@@ -197,6 +204,7 @@ export async function createTask(data: {
     status: "backlog" as TaskStatus,
     priority: data.priority,
     assignee: data.assignee || null,
+    reviewer: null,
     createdBy: data.createdBy,
     createdAt: now,
     updatedAt: now,
@@ -221,10 +229,13 @@ export async function updateTask(
     status: TaskStatus;
     priority: TaskPriority;
     assignee: AgentId | null;
+    reviewer: AgentId | null;
     tags: string[];
     dueDate: Date | null;
     deliverable: string | null;
     deliverables: string[] | null;
+    pullRequest: string | null;
+    pullRequests: string[] | null;
   }>,
 ): Promise<Task | null> {
   const tasks = await readTasks();
@@ -254,6 +265,31 @@ export async function updateTask(
   const { dueDate: _dd, ...otherFields } = updateFields;
   Object.assign(tasks[index], otherFields);
   tasks[index].updatedAt = new Date().toISOString();
+
+  if (data.pullRequests !== undefined) {
+    const normalizedPullRequests = data.pullRequests
+      ? Array.from(new Set(data.pullRequests))
+      : [];
+    tasks[index].pullRequests =
+      normalizedPullRequests.length > 0 ? normalizedPullRequests : undefined;
+
+    // Keep deprecated single value in sync when caller updates array only.
+    if (data.pullRequest === undefined) {
+      tasks[index].pullRequest = tasks[index].pullRequests?.[0];
+    }
+  }
+
+  if (data.pullRequest !== undefined) {
+    if (!data.pullRequest) {
+      tasks[index].pullRequest = undefined;
+    } else {
+      tasks[index].pullRequest = data.pullRequest;
+      const existingPullRequests = tasks[index].pullRequests || [];
+      if (!existingPullRequests.includes(data.pullRequest)) {
+        tasks[index].pullRequests = [data.pullRequest, ...existingPullRequests];
+      }
+    }
+  }
 
   await writeTasks(tasks);
   return tasks[index];
@@ -350,6 +386,8 @@ export async function completeTask(
   note?: string,
   deliverables?: string[],
   deliverable?: string,
+  pullRequests?: string[],
+  pullRequest?: string,
 ): Promise<Task | null> {
   const tasks = await readTasks();
   const index = tasks.findIndex((t) => t.id === taskId);
@@ -382,6 +420,26 @@ export async function completeTask(
     const existingDeliverables = tasks[index].deliverables || [];
     if (!existingDeliverables.includes(deliverable)) {
       tasks[index].deliverables = [deliverable, ...existingDeliverables];
+    }
+  }
+
+  // Handle pullRequests array (new format)
+  if (pullRequests && pullRequests.length > 0) {
+    const existingPullRequests = tasks[index].pullRequests || [];
+    tasks[index].pullRequests = Array.from(
+      new Set([...existingPullRequests, ...pullRequests]),
+    );
+
+    // Keep deprecated single value in sync for backward compatibility.
+    tasks[index].pullRequest = tasks[index].pullRequests[0];
+  }
+
+  // Handle single pullRequest (backward compatibility)
+  if (pullRequest) {
+    tasks[index].pullRequest = pullRequest;
+    const existingPullRequests = tasks[index].pullRequests || [];
+    if (!existingPullRequests.includes(pullRequest)) {
+      tasks[index].pullRequests = [pullRequest, ...existingPullRequests];
     }
   }
 
@@ -444,15 +502,16 @@ export async function addCommentWithId(
 
 // ============ MENTIONS OPERATIONS ============
 
-export function parseMentions(text: string): AgentId[] {
-  const validAgents: AgentId[] = AGENT_CONFIG.agents.map((a) => a.id);
-  const regex = /@(\w+)/g;
+export async function parseMentions(text: string): Promise<AgentId[]> {
+  const runtimeConfig = await getRuntimeAgentConfig();
+  const validAgents = new Set(runtimeConfig.agents.map((a) => a.id));
+  const regex = /@([a-zA-Z0-9_-]+)/g;
   const mentions: AgentId[] = [];
   let match;
 
   while ((match = regex.exec(text)) !== null) {
     const agent = match[1].toLowerCase() as AgentId;
-    if (validAgents.includes(agent) && !mentions.includes(agent)) {
+    if (validAgents.has(agent) && !mentions.includes(agent)) {
       mentions.push(agent);
     }
   }
@@ -620,24 +679,35 @@ export function subscribeToAgents(
 // ============ SEED DATA ============
 
 export async function seedAgents(): Promise<void> {
+  const now = new Date().toISOString();
+  const runtimeConfig = await getRuntimeAgentConfig();
   const existingAgents = await readAgents();
-  const existingIds = new Set(existingAgents.map((a) => a.id));
+  const existingById = new Map(existingAgents.map((agent) => [agent.id, agent]));
 
-  let changed = false;
-  for (const agent of AGENTS) {
-    if (!existingIds.has(agent.id)) {
-      const agentData: Agent = {
+  const syncedAgents: Agent[] = runtimeConfig.agents.map((agent) => {
+    const existing = existingById.get(agent.id);
+    if (!existing) {
+      return {
         ...agent,
         status: "active" as AgentStatus,
         currentTask: null,
-        lastSeen: new Date().toISOString(),
+        lastSeen: now,
       };
-      existingAgents.push(agentData);
-      changed = true;
     }
-  }
 
-  if (changed) {
-    await writeAgents(existingAgents);
+    return {
+      ...existing,
+      name: agent.name,
+      emoji: agent.emoji,
+      role: agent.role,
+      focus: agent.focus,
+    };
+  });
+
+  const serializedExisting = JSON.stringify(existingAgents);
+  const serializedSynced = JSON.stringify(syncedAgents);
+
+  if (serializedExisting !== serializedSynced) {
+    await writeAgents(syncedAgents);
   }
 }

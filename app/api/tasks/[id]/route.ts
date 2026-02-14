@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTask, updateTask, deleteTask, serializeTask } from '@/lib/local-storage';
 import { TaskStatus, TaskPriority, AgentId } from '@/lib/types';
+import { getRuntimeAgentIds, normalizeAgentId } from "@/lib/runtime-agent-config";
+import { isGitHubPullRequestUrl } from '@/lib/github-pr';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +41,20 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json();
-    const { title, description, status, priority, assignee, tags, dueDate, deliverable, deliverables } = body;
+    const {
+      title,
+      description,
+      status,
+      priority,
+      assignee,
+      reviewer,
+      tags,
+      dueDate,
+      deliverable,
+      deliverables,
+      pullRequest,
+      pullRequests,
+    } = body;
 
     // Validate status if provided
     if (status && !['backlog', 'todo', 'in_progress', 'review', 'done'].includes(status)) {
@@ -55,6 +70,28 @@ export async function PATCH(
         { success: false, error: 'Invalid priority' },
         { status: 400 }
       );
+    }
+
+    if (assignee !== undefined && assignee !== null && assignee !== "") {
+      const validAgents = new Set(await getRuntimeAgentIds());
+      const assigneeId = normalizeAgentId(String(assignee));
+      if (!validAgents.has(assigneeId)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid assignee" },
+          { status: 400 },
+        );
+      }
+    }
+
+    if (reviewer !== undefined && reviewer !== null && reviewer !== "") {
+      const validAgents = new Set(await getRuntimeAgentIds());
+      const reviewerId = normalizeAgentId(String(reviewer));
+      if (!validAgents.has(reviewerId)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid reviewer" },
+          { status: 400 },
+        );
+      }
     }
 
     // Validate deliverable if provided (must be .md file) - backward compatibility
@@ -77,27 +114,72 @@ export async function PATCH(
       }
     }
 
+    // Validate single GitHub PR URL if provided (backward compatibility)
+    if (pullRequest !== undefined && pullRequest !== null) {
+      if (typeof pullRequest !== 'string' || !isGitHubPullRequestUrl(pullRequest)) {
+        return NextResponse.json(
+          { success: false, error: 'Pull request must be a valid GitHub PR URL' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate array of GitHub PR URLs if provided
+    if (pullRequests !== undefined) {
+      if (!Array.isArray(pullRequests)) {
+        return NextResponse.json(
+          { success: false, error: 'pullRequests must be an array' },
+          { status: 400 }
+        );
+      }
+
+      for (const pr of pullRequests) {
+        if (typeof pr !== 'string' || !isGitHubPullRequestUrl(pr)) {
+          return NextResponse.json(
+            { success: false, error: 'All pullRequests must be valid GitHub PR URLs' },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const updateData: Partial<{
       title: string;
       description: string;
       status: TaskStatus;
       priority: TaskPriority;
       assignee: AgentId | null;
+      reviewer: AgentId | null;
       tags: string[];
       dueDate: Date | null;
       deliverable: string | null;
       deliverables: string[] | null;
+      pullRequest: string | null;
+      pullRequests: string[] | null;
     }> = {};
 
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (status !== undefined) updateData.status = status;
     if (priority !== undefined) updateData.priority = priority;
-    if (assignee !== undefined) updateData.assignee = assignee;
+    if (assignee !== undefined) {
+      updateData.assignee =
+        assignee === null || assignee === ""
+          ? null
+          : normalizeAgentId(String(assignee));
+    }
+    if (reviewer !== undefined) {
+      updateData.reviewer =
+        reviewer === null || reviewer === ""
+          ? null
+          : normalizeAgentId(String(reviewer));
+    }
     if (tags !== undefined) updateData.tags = tags;
     if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
     if (deliverable !== undefined) updateData.deliverable = deliverable;
     if (deliverables !== undefined) updateData.deliverables = deliverables;
+    if (pullRequest !== undefined) updateData.pullRequest = pullRequest;
+    if (pullRequests !== undefined) updateData.pullRequests = pullRequests;
 
     const task = await updateTask(params.id, updateData);
 

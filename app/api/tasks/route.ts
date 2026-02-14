@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTasks, createTask, serializeTask } from '@/lib/local-storage';
 import { TaskStatus, TaskPriority, AgentId } from '@/lib/types';
+import { getRuntimeAgentIds, normalizeAgentId } from "@/lib/runtime-agent-config";
 
 export const dynamic = 'force-dynamic';
 
@@ -54,12 +55,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const validAgents = new Set(await getRuntimeAgentIds());
+    const createdById = normalizeAgentId(createdBy);
+    if (!validAgents.has(createdById)) {
+      return NextResponse.json(
+        { success: false, error: "createdBy must be a valid agent ID" },
+        { status: 400 },
+      );
+    }
+
+    let assigneeId: AgentId | null = null;
+    if (assignee) {
+      assigneeId = normalizeAgentId(assignee);
+      if (!validAgents.has(assigneeId)) {
+        return NextResponse.json(
+          { success: false, error: "assignee must be a valid agent ID" },
+          { status: 400 },
+        );
+      }
+    }
+
     const task = await createTask({
       title,
       description,
       priority,
-      assignee: assignee || null,
-      createdBy,
+      assignee: assigneeId,
+      createdBy: createdById,
       tags: tags || [],
       dueDate: dueDate ? new Date(dueDate) : undefined,
     });

@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { markMentionsRead, markAllMentionsRead } from '@/lib/local-storage';
 import { AgentId } from '@/lib/types';
-import { AGENT_CONFIG } from '@/lib/config';
+import { getRuntimeAgentIds, normalizeAgentId } from "@/lib/runtime-agent-config";
 
 export const dynamic = 'force-dynamic';
-
-const VALID_AGENTS: AgentId[] = AGENT_CONFIG.agents.map(a => a.id);
 
 // POST /api/mentions/read - Mark mentions as read
 export async function POST(request: NextRequest) {
@@ -21,8 +19,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const agentId = agent.toLowerCase() as AgentId;
-    if (!VALID_AGENTS.includes(agentId)) {
+    const agentId = normalizeAgentId(agent) as AgentId;
+    const validAgents = new Set(await getRuntimeAgentIds());
+    if (!validAgents.has(agentId)) {
       return NextResponse.json(
         { success: false, error: 'Invalid agent ID' },
         { status: 400 }

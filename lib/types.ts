@@ -1,4 +1,4 @@
-import { AGENT_CONFIG, AgentId } from './config';
+import { AgentId } from './config';
 
 export type { AgentId } from './config';
 export type TaskStatus = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
@@ -53,6 +53,7 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   assignee: AgentId | null;
+  reviewer?: AgentId | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -62,6 +63,8 @@ export interface Task {
   workLog: WorkLogEntry[];
   deliverable?: string; // DEPRECATED: Use deliverables instead. Kept for backward compatibility
   deliverables?: string[]; // Array of file paths to the outputs
+  pullRequest?: string; // DEPRECATED: Use pullRequests instead. Kept for backward compatibility
+  pullRequests?: string[]; // Array of GitHub PR URLs
 }
 
 export interface Agent {
@@ -98,6 +101,7 @@ export interface SerializedTask {
   status: TaskStatus;
   priority: TaskPriority;
   assignee: AgentId | null;
+  reviewer?: AgentId | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -107,6 +111,8 @@ export interface SerializedTask {
   workLog: SerializedWorkLogEntry[];
   deliverable?: string; // DEPRECATED: Use deliverables instead. Kept for backward compatibility
   deliverables?: string[]; // Array of file paths to the outputs
+  pullRequest?: string; // DEPRECATED: Use pullRequests instead. Kept for backward compatibility
+  pullRequests?: string[]; // Array of GitHub PR URLs
 }
 
 export interface SerializedAgent {
@@ -128,9 +134,6 @@ export const COLUMNS: { id: TaskStatus; title: string }[] = [
   { id: 'review', title: 'Review' },
   { id: 'done', title: 'Done' },
 ];
-
-// Agent configuration - derived from config.ts
-export const AGENTS: Omit<Agent, 'status' | 'currentTask' | 'lastSeen'>[] = [...AGENT_CONFIG.agents];
 
 // Priority colors
 export const PRIORITY_COLORS: Record<TaskPriority, { bg: string; text: string; border: string }> = {

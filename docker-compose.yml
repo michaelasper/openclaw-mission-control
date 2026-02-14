@@ -1,0 +1,48 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mission-control-app
+    restart: unless-stopped
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - mission-control-data:/app/data
+      - ./data/agent-config.json:/app/data/agent-config.json
+      - ${OPENCLAW_HOME:-/Users/michaelasper/.openclaw}:/Users/michaelasper/.openclaw:ro
+      - ${OPENCLAW_HOME:-/Users/michaelasper/.openclaw}:/root/.openclaw:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/tasks"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  tailscale:
+    image: tailscale/tailscale:stable
+    container_name: mission-control-tailscale
+    restart: unless-stopped
+    profiles:
+      - tailscale
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      TS_AUTHKEY: "${TS_AUTHKEY:-}"
+      TS_HOSTNAME: "${TS_HOSTNAME:-mission-control}"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_TARGET: http://app:8080
+      TS_SERVE_PORT: "${TS_SERVE_PORT:-80}"
+      TS_SERVE_HTTPS_PORT: "${TS_SERVE_HTTPS_PORT:-443}"
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - ./docker/tailscale/start.sh:/usr/local/bin/start-tailscale.sh:ro
+    command: ["/usr/local/bin/start-tailscale.sh"]
+
+volumes:
+  mission-control-data:
+  tailscale-state:

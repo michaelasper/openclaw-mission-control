@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logWork, serializeTask } from '@/lib/local-storage';
 import { AgentId } from '@/lib/types';
+import { getRuntimeAgentIds, normalizeAgentId } from "@/lib/runtime-agent-config";
 
 export const dynamic = 'force-dynamic';
 
@@ -20,11 +21,11 @@ export async function POST(
       );
     }
 
-    // Validate agent
-    const validAgents = ['shri', 'leo', 'nova', 'pixel', 'cipher', 'echo', 'forge'];
-    if (!validAgents.includes(agent)) {
+    const agentId = normalizeAgentId(agent) as AgentId;
+    const validAgents = new Set(await getRuntimeAgentIds());
+    if (!validAgents.has(agentId)) {
       return NextResponse.json(
-        { success: false, error: `Invalid agent. Must be one of: ${validAgents.join(', ')}` },
+        { success: false, error: "Invalid agent ID" },
         { status: 400 }
       );
     }
@@ -38,7 +39,7 @@ export async function POST(
       );
     }
 
-    const task = await logWork(params.id, agent as AgentId, action, note);
+    const task = await logWork(params.id, agentId, action, note);
 
     if (!task) {
       return NextResponse.json(

@@ -7,13 +7,13 @@ import {
   TaskStatus,
   TaskPriority,
   AgentId,
-  AGENTS,
   COLUMNS,
 } from '@/lib/types';
-import { AGENT_CONFIG } from '@/lib/config';
+import { useAgentConfig } from "@/components/AgentConfigProvider";
 import AgentAvatar from './AgentAvatar';
 import PriorityBadge from './PriorityBadge';
 import DeliverableModal from './DeliverableModal';
+import { isGitHubPullRequestUrl } from '@/lib/github-pr';
 
 interface TaskDetailProps {
   task: SerializedTask;
@@ -32,15 +32,24 @@ interface ModalState {
   path: string | null;
 }
 
+type TaskUpdatePayload = Omit<Partial<SerializedTask>, 'pullRequest' | 'pullRequests'> & {
+  pullRequest?: string | null;
+  pullRequests?: string[] | null;
+};
+
 export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
   const router = useRouter();
+  const { agents } = useAgentConfig();
   const [task, setTask] = useState(initialTask);
   const [loading, setLoading] = useState(false);
   const [deliverableStates, setDeliverableStates] = useState<Record<string, DeliverableState>>({});
   const [modalState, setModalState] = useState<ModalState>({ isOpen: false, path: null });
+  const [pullRequestInput, setPullRequestInput] = useState('');
+  const [pullRequestError, setPullRequestError] = useState<string | null>(null);
+  const [pullRequestSaving, setPullRequestSaving] = useState(false);
   
   // Comment form state
-  const [commentAuthor, setCommentAuthor] = useState<AgentId>(AGENT_CONFIG.agents[0].id);
+  const [commentAuthor, setCommentAuthor] = useState<AgentId>("");
   const [commentContent, setCommentContent] = useState('');
   const [commentSubmitting, setCommentSubmitting] = useState(false);
 
@@ -58,6 +67,20 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
     return deliverables;
   }, [task.deliverable, task.deliverables]);
 
+  // Get all pull requests (combining old single pullRequest with new array for backward compatibility)
+  const allPullRequests = React.useMemo(() => {
+    const pullRequests: string[] = [];
+    // Add from pullRequests array first
+    if (task.pullRequests && task.pullRequests.length > 0) {
+      pullRequests.push(...task.pullRequests);
+    }
+    // Add old single pullRequest if not already in array (backward compatibility)
+    if (task.pullRequest && !pullRequests.includes(task.pullRequest)) {
+      pullRequests.unshift(task.pullRequest);
+    }
+    return pullRequests;
+  }, [task.pullRequest, task.pullRequests]);
+
   // Initialize deliverable states when deliverables change
   useEffect(() => {
     const newStates: Record<string, DeliverableState> = {};
@@ -70,6 +93,13 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
     });
     setDeliverableStates(newStates);
   }, [allDeliverables.join(',')]);
+
+  useEffect(() => {
+    if (agents.length === 0) return;
+    if (!agents.some((agent) => agent.id === commentAuthor)) {
+      setCommentAuthor(agents[0].id);
+    }
+  }, [agents, commentAuthor]);
 
   // Fetch deliverable content
   const fetchDeliverable = async (path: string) => {
@@ -129,7 +159,7 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
   const currentModalState = modalState.path ? deliverableStates[modalState.path] : null;
   const currentModalFilename = modalState.path?.split('/').pop() || '';
 
-  const handleUpdate = async (updates: Partial<SerializedTask>) => {
+  const handleUpdate = async (updates: TaskUpdatePayload): Promise<boolean> => {
     setLoading(true);
     try {
       const response = await fetch(`/api/tasks/${task.id}`, {
@@ -140,12 +170,59 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
       const data = await response.json();
       if (data.success) {
         setTask(data.task);
+        return true;
       }
+      console.error('Failed to update task:', data.error);
+      return false;
     } catch (error) {
       console.error('Failed to update task:', error);
+      return false;
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAddPullRequest = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (pullRequestSaving) return;
+
+    const trimmedUrl = pullRequestInput.trim();
+    if (!trimmedUrl) return;
+
+    if (!isGitHubPullRequestUrl(trimmedUrl)) {
+      setPullRequestError('Enter a valid GitHub pull request URL');
+      return;
+    }
+
+    if (allPullRequests.includes(trimmedUrl)) {
+      setPullRequestError('That pull request is already attached');
+      return;
+    }
+
+    setPullRequestError(null);
+    setPullRequestSaving(true);
+    const nextPullRequests = [...allPullRequests, trimmedUrl];
+    const updated = await handleUpdate({
+      pullRequests: nextPullRequests,
+      pullRequest: nextPullRequests[0],
+    });
+    setPullRequestSaving(false);
+
+    if (updated) {
+      setPullRequestInput('');
+    }
+  };
+
+  const handleRemovePullRequest = async (pullRequestUrl: string) => {
+    if (pullRequestSaving) return;
+
+    setPullRequestSaving(true);
+    const nextPullRequests = allPullRequests.filter((pr) => pr !== pullRequestUrl);
+    await handleUpdate({
+      pullRequests: nextPullRequests,
+      pullRequest: nextPullRequests[0] || null,
+    });
+    setPullRequestSaving(false);
   };
 
   const handleDelete = async () => {
@@ -168,7 +245,7 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentContent.trim() || commentSubmitting) return;
+    if (!commentAuthor || !commentContent.trim() || commentSubmitting) return;
 
     setCommentSubmitting(true);
     try {
@@ -202,8 +279,9 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
     }
   };
 
-  const creator = AGENTS.find((a) => a.id === task.createdBy);
-  const assignee = task.assignee ? AGENTS.find((a) => a.id === task.assignee) : null;
+  const creator = agents.find((a) => a.id === task.createdBy);
+  const assignee = task.assignee ? agents.find((a) => a.id === task.assignee) : null;
+  const reviewer = task.reviewer ? agents.find((a) => a.id === task.reviewer) : null;
   const currentColumn = COLUMNS.find((c) => c.id === task.status);
 
   return (
@@ -276,6 +354,88 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
               <p className="font-body text-text-secondary whitespace-pre-wrap leading-relaxed">
                 {task.description}
               </p>
+            </div>
+          </div>
+
+          {/* Pull Requests */}
+          <div className="relative rounded-2xl overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-surface/80 to-deep/80 backdrop-blur-xl" />
+            <div className="absolute inset-0 rounded-2xl border border-elevated/50" />
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-info/50 via-cyan/50 to-success/50" />
+
+            <div className="relative p-6">
+              <h2 className="font-display text-lg font-semibold text-text-primary flex items-center gap-3 mb-5">
+                <svg className="w-5 h-5 text-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2l3 7h7l-5.5 4.3L18.5 21 12 16.7 5.5 21l2-7.7L2 9h7z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                GitHub Pull Requests
+                <span className="font-mono text-xs text-text-muted tracking-wider px-2 py-1 rounded-md bg-elevated/30 border border-elevated/50">
+                  {allPullRequests.length} linked
+                </span>
+              </h2>
+
+              {allPullRequests.length > 0 ? (
+                <div className="space-y-2 mb-4">
+                  {allPullRequests.map((prUrl) => (
+                    <div
+                      key={prUrl}
+                      className="flex items-center gap-3 p-3 rounded-xl bg-abyss/40 border border-elevated/30"
+                    >
+                      <a
+                        href={prUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex-1 min-w-0 font-mono text-xs text-cyan hover:text-cyan-bright truncate transition-colors"
+                        title={prUrl}
+                      >
+                        {prUrl}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePullRequest(prUrl)}
+                        disabled={loading || pullRequestSaving}
+                        className="px-2.5 py-1.5 rounded-lg bg-danger/10 border border-danger/30 text-danger font-mono text-[10px] tracking-wider uppercase hover:bg-danger/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="font-mono text-xs text-text-muted mb-4">No pull requests linked yet</p>
+              )}
+
+              <form onSubmit={handleAddPullRequest} className="space-y-3 border-t border-elevated/30 pt-4">
+                <input
+                  type="url"
+                  value={pullRequestInput}
+                  onChange={(event) => {
+                    setPullRequestInput(event.target.value);
+                    if (pullRequestError) {
+                      setPullRequestError(null);
+                    }
+                  }}
+                  disabled={loading || pullRequestSaving}
+                  placeholder="https://github.com/org/repo/pull/123"
+                  className="w-full px-4 py-3 rounded-xl bg-abyss/50 border border-elevated/30 text-text-primary font-body text-sm placeholder-text-muted/50 focus:outline-none focus:border-cyan/50 transition-colors"
+                />
+                <div className="flex items-center justify-between gap-3">
+                  {pullRequestError ? (
+                    <p className="font-mono text-[10px] tracking-wider text-danger uppercase">{pullRequestError}</p>
+                  ) : (
+                    <span className="font-mono text-[10px] tracking-wider text-text-muted uppercase">
+                      GitHub PR URLs only
+                    </span>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={loading || pullRequestSaving || !pullRequestInput.trim()}
+                    className="px-4 py-2 rounded-lg bg-info/15 border border-info/30 text-info font-mono text-[10px] tracking-wider uppercase hover:bg-info/25 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {pullRequestSaving ? 'Saving...' : 'Attach PR'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
 
@@ -372,7 +532,7 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
                 </h2>
                 <div className="space-y-4">
                   {task.workLog.map((entry, index) => {
-                    const agent = AGENTS.find((a) => a.id === entry.agent);
+                    const agent = agents.find((a) => a.id === entry.agent);
                     return (
                       <div key={entry.id} className="flex items-start gap-4">
                         <div className="relative">
@@ -428,7 +588,7 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
               {task.comments.length > 0 ? (
                 <div className="space-y-4 mb-6">
                   {task.comments.map((comment) => {
-                    const author = AGENTS.find((a) => a.id === comment.author);
+                    const author = agents.find((a) => a.id === comment.author);
                     return (
                       <div key={comment.id} className="flex items-start gap-3">
                         <AgentAvatar agentId={comment.author as AgentId} size="sm" />
@@ -470,7 +630,7 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
                     disabled={commentSubmitting}
                     className="px-3 py-1.5 rounded-lg bg-abyss/50 border border-elevated/30 text-text-primary font-body text-sm focus:outline-none focus:border-cyan/50 transition-colors"
                   >
-                    {AGENTS.map((agent) => (
+                    {agents.map((agent) => (
                       <option key={agent.id} value={agent.id}>
                         {agent.emoji} {agent.name}
                       </option>
@@ -490,7 +650,7 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
                 <div className="flex justify-end mt-3">
                   <button
                     type="submit"
-                    disabled={commentSubmitting || !commentContent.trim()}
+                    disabled={commentSubmitting || !commentAuthor || !commentContent.trim()}
                     className="group px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan/20 to-violet/20 border border-cyan/30 hover:border-cyan/50 hover:from-cyan/30 hover:to-violet/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                   >
                     <span className="flex items-center gap-2 font-mono text-xs text-cyan tracking-wider uppercase">
@@ -581,7 +741,7 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
                 className="w-full px-4 py-3 rounded-xl cyber-select text-text-primary font-body"
               >
                 <option value="">Unassigned</option>
-                {AGENTS.map((agent) => (
+                {agents.map((agent) => (
                   <option key={agent.id} value={agent.id}>
                     {agent.emoji} {agent.name}
                   </option>
@@ -598,6 +758,47 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
               )}
             </div>
           </div>
+
+          {/* Reviewer (Review Stage) */}
+          {task.status === 'review' && (
+            <div className="relative rounded-2xl overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-surface/80 to-deep/80 backdrop-blur-xl" />
+              <div className="absolute inset-0 rounded-2xl border border-elevated/50" />
+              <div className="relative p-5">
+                <label className="block font-mono text-[10px] text-text-muted tracking-wider uppercase mb-3">
+                  Reviewer
+                </label>
+                <select
+                  value={task.reviewer || ''}
+                  onChange={(e) =>
+                    handleUpdate({ reviewer: (e.target.value as AgentId) || null })
+                  }
+                  disabled={loading}
+                  className="w-full px-4 py-3 rounded-xl cyber-select text-text-primary font-body"
+                >
+                  <option value="">Unassigned</option>
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.emoji} {agent.name}
+                    </option>
+                  ))}
+                </select>
+                {reviewer ? (
+                  <div className="flex items-center gap-3 mt-4 pt-4 border-t border-elevated/30">
+                    <AgentAvatar agentId={task.reviewer as AgentId} size="lg" />
+                    <div>
+                      <p className="font-body text-sm font-medium text-text-primary">{reviewer.name}</p>
+                      <p className="font-mono text-[10px] text-text-muted tracking-wider uppercase">{reviewer.role}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="font-mono text-[10px] text-text-muted tracking-wider uppercase mt-3">
+                    Assign a reviewer to drive approval.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Tags */}
           <div className="relative rounded-2xl overflow-hidden">

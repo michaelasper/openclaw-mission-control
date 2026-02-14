@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { completeTask, serializeTask } from '@/lib/local-storage';
 import { AgentId } from '@/lib/types';
+import { getRuntimeAgentIds, normalizeAgentId } from "@/lib/runtime-agent-config";
+import { isGitHubPullRequestUrl } from '@/lib/github-pr';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +13,7 @@ export async function POST(
 ) {
   try {
     const body = await request.json();
-    const { agent, note, deliverable, deliverables } = body;
+    const { agent, note, deliverable, deliverables, pullRequest, pullRequests } = body;
 
     if (!agent) {
       return NextResponse.json(
@@ -20,11 +22,11 @@ export async function POST(
       );
     }
 
-    // Validate agent
-    const validAgents = ['shri', 'leo', 'nova', 'pixel', 'cipher', 'echo', 'forge'];
-    if (!validAgents.includes(agent)) {
+    const agentId = normalizeAgentId(agent) as AgentId;
+    const validAgents = new Set(await getRuntimeAgentIds());
+    if (!validAgents.has(agentId)) {
       return NextResponse.json(
-        { success: false, error: `Invalid agent. Must be one of: ${validAgents.join(', ')}` },
+        { success: false, error: "Invalid agent ID" },
         { status: 400 }
       );
     }
@@ -49,7 +51,44 @@ export async function POST(
       }
     }
 
-    const task = await completeTask(params.id, agent as AgentId, note, deliverables, deliverable);
+    // Validate single GitHub PR URL if provided (backward compatibility)
+    if (pullRequest !== undefined && pullRequest !== null) {
+      if (typeof pullRequest !== 'string' || !isGitHubPullRequestUrl(pullRequest)) {
+        return NextResponse.json(
+          { success: false, error: 'Pull request must be a valid GitHub PR URL' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate array of GitHub PR URLs if provided
+    if (pullRequests !== undefined) {
+      if (!Array.isArray(pullRequests)) {
+        return NextResponse.json(
+          { success: false, error: 'pullRequests must be an array' },
+          { status: 400 }
+        );
+      }
+
+      for (const pr of pullRequests) {
+        if (typeof pr !== 'string' || !isGitHubPullRequestUrl(pr)) {
+          return NextResponse.json(
+            { success: false, error: 'All pullRequests must be valid GitHub PR URLs' },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    const task = await completeTask(
+      params.id,
+      agentId,
+      note,
+      deliverables,
+      deliverable,
+      pullRequests,
+      pullRequest,
+    );
 
     if (!task) {
       return NextResponse.json(
@@ -61,7 +100,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       task: serializeTask(task),
-      message: `Task completed by ${agent}`,
+      message: `Task completed by ${agentId}`,
     });
   } catch (error) {
     console.error('Error completing task:', error);

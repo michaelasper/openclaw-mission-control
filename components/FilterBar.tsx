@@ -1,6 +1,7 @@
 'use client';
 
-import { AgentId, TaskPriority, AGENTS } from '@/lib/types';
+import { useAgentConfig } from "@/components/AgentConfigProvider";
+import { AgentId, TaskPriority } from "@/lib/types";
 
 interface FilterBarProps {
   filters: {
@@ -16,6 +17,7 @@ interface FilterBarProps {
 }
 
 export default function FilterBar({ filters, onFilterChange }: FilterBarProps) {
+  const { agents } = useAgentConfig();
   const hasActiveFilters = filters.assignee !== 'all' || filters.priority !== 'all' || filters.search;
 
   return (
@@ -65,7 +67,7 @@ export default function FilterBar({ filters, onFilterChange }: FilterBarProps) {
             className="px-4 py-2.5 rounded-xl cyber-select text-sm text-text-primary font-body min-w-[160px]"
           >
             <option value="all">All Agents</option>
-            {AGENTS.map((agent) => (
+            {agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
                 {agent.emoji} {agent.name}
               </option>

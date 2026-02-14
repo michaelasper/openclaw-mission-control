@@ -1,0 +1,29 @@
+{
+  "brand": {
+    "name": "hackpanel",
+    "subtitle": "AI Agent Command Center"
+  },
+  "agents": [
+    {
+      "id": "manager",
+      "name": "Team Manager",
+      "emoji": "🎯",
+      "role": "Team Lead",
+      "focus": "Strategy, task assignment"
+    },
+    {
+      "id": "stoner",
+      "name": "Stoner",
+      "emoji": "🍃",
+      "role": "Content",
+      "focus": "cannabis, content writing"
+    },
+    {
+      "id": "coding",
+      "name": "Dev",
+      "emoji": "💻",
+      "role": "Engineering",
+      "focus": "Features, bugs, code"
+    }
+  ]
+}

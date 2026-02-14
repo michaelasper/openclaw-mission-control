@@ -4,14 +4,11 @@ import {
   addCommentWithId,
   parseMentions,
   createMention,
-  serializeTask
 } from '@/lib/local-storage';
 import { AgentId } from '@/lib/types';
-import { AGENT_CONFIG } from '@/lib/config';
+import { getRuntimeAgentIds, normalizeAgentId } from "@/lib/runtime-agent-config";
 
 export const dynamic = 'force-dynamic';
-
-const VALID_AGENTS: AgentId[] = AGENT_CONFIG.agents.map(a => a.id);
 
 // POST /api/tasks/[id]/comments - Add a comment with @mentions
 export async function POST(
@@ -30,7 +27,10 @@ export async function POST(
       );
     }
 
-    if (!VALID_AGENTS.includes(author.toLowerCase() as AgentId)) {
+    const authorId = normalizeAgentId(author) as AgentId;
+    const validAgents = new Set(await getRuntimeAgentIds());
+
+    if (!validAgents.has(authorId)) {
       return NextResponse.json(
         { success: false, error: 'Author must be a valid agent ID' },
         { status: 400 }
@@ -55,7 +55,7 @@ export async function POST(
     }
 
     // Add the comment
-    const result = await addCommentWithId(params.id, author.toLowerCase(), content);
+    const result = await addCommentWithId(params.id, authorId, content);
     if (!result) {
       return NextResponse.json(
         { success: false, error: 'Failed to add comment' },
@@ -66,7 +66,7 @@ export async function POST(
     const { task: updatedTask, commentId } = result;
 
     // Parse mentions from content
-    const mentionedAgents = parseMentions(content);
+    const mentionedAgents = await parseMentions(content);
 
     // Create mention records for each mentioned agent
     for (const mentionedAgent of mentionedAgents) {
@@ -74,7 +74,7 @@ export async function POST(
         taskId: params.id,
         taskTitle: updatedTask.title,
         commentId,
-        author: author.toLowerCase(),
+        author: authorId,
         mentionedAgent,
         content,
       });

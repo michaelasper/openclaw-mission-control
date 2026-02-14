@@ -1,6 +1,7 @@
 'use client';
 
-import { AGENTS, AgentId, AgentStatus } from '@/lib/types';
+import { useAgentConfig } from "@/components/AgentConfigProvider";
+import { AgentId, AgentStatus } from "@/lib/types";
 
 interface AgentAvatarProps {
   agentId: AgentId | null;
@@ -24,7 +25,8 @@ export default function AgentAvatar({
   status,
   showName = false,
 }: AgentAvatarProps) {
-  const agent = agentId ? AGENTS.find((a) => a.id === agentId) : null;
+  const { agents } = useAgentConfig();
+  const agent = agentId ? agents.find((a) => a.id === agentId) : null;
 
   const sizeConfig = {
     sm: { container: 'w-7 h-7', text: 'text-sm', statusDot: 'w-2 h-2 -bottom-0.5 -right-0.5', name: 'text-xs' },

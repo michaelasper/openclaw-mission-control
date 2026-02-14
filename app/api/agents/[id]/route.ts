@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAgent, updateAgent, serializeAgent } from '@/lib/local-storage';
+import { getAgent, seedAgents, updateAgent, serializeAgent } from '@/lib/local-storage';
 import { AgentId, AgentStatus } from '@/lib/types';
+import { getRuntimeAgentIds, normalizeAgentId } from "@/lib/runtime-agent-config";
 
 export const dynamic = 'force-dynamic';
 
@@ -10,16 +11,18 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Validate agent ID
-    const validAgents = ['shri', 'leo', 'nova', 'pixel', 'cipher', 'echo', 'forge'];
-    if (!validAgents.includes(params.id)) {
+    const agentId = normalizeAgentId(params.id) as AgentId;
+    const validAgents = new Set(await getRuntimeAgentIds());
+    if (!validAgents.has(agentId)) {
       return NextResponse.json(
-        { success: false, error: `Invalid agent ID. Must be one of: ${validAgents.join(', ')}` },
+        { success: false, error: "Invalid agent ID" },
         { status: 400 }
       );
     }
 
-    const agent = await getAgent(params.id as AgentId);
+    await seedAgents();
+
+    const agent = await getAgent(agentId);
 
     if (!agent) {
       return NextResponse.json(
@@ -47,14 +50,16 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Validate agent ID
-    const validAgents = ['shri', 'leo', 'nova', 'pixel', 'cipher', 'echo', 'forge'];
-    if (!validAgents.includes(params.id)) {
+    const agentId = normalizeAgentId(params.id) as AgentId;
+    const validAgents = new Set(await getRuntimeAgentIds());
+    if (!validAgents.has(agentId)) {
       return NextResponse.json(
-        { success: false, error: `Invalid agent ID. Must be one of: ${validAgents.join(', ')}` },
+        { success: false, error: "Invalid agent ID" },
         { status: 400 }
       );
     }
+
+    await seedAgents();
 
     const body = await request.json();
     const { status, currentTask } = body;
@@ -78,7 +83,7 @@ export async function PATCH(
     if (status !== undefined) updateData.status = status;
     if (currentTask !== undefined) updateData.currentTask = currentTask;
 
-    const agent = await updateAgent(params.id as AgentId, updateData);
+    const agent = await updateAgent(agentId, updateData);
 
     if (!agent) {
       return NextResponse.json(

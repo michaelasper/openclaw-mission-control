@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTasksByAgent, serializeTask } from '@/lib/local-storage';
 import { AgentId } from '@/lib/types';
+import { getRuntimeAgentIds, normalizeAgentId } from "@/lib/runtime-agent-config";
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const agent = searchParams.get('agent') as AgentId | null;
+    const agent = searchParams.get('agent');
 
     if (!agent) {
       return NextResponse.json(
@@ -17,20 +18,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Validate agent
-    const validAgents = ['shri', 'leo', 'nova', 'pixel', 'cipher', 'echo', 'forge'];
-    if (!validAgents.includes(agent)) {
+    const agentId = normalizeAgentId(agent) as AgentId;
+    const validAgents = new Set(await getRuntimeAgentIds());
+    if (!validAgents.has(agentId)) {
       return NextResponse.json(
-        { success: false, error: `Invalid agent. Must be one of: ${validAgents.join(', ')}` },
+        { success: false, error: "Invalid agent ID" },
         { status: 400 }
       );
     }
 
-    const tasks = await getTasksByAgent(agent);
+    const tasks = await getTasksByAgent(agentId);
 
     return NextResponse.json({
       success: true,
-      agent,
+      agent: agentId,
       tasks: tasks.map(serializeTask),
       count: tasks.length,
     });

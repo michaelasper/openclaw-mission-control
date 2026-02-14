@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AGENT_CONFIG } from "@/lib/config";
+import { useAgentConfig } from "@/components/AgentConfigProvider";
 
 export default function Navbar() {
   const pathname = usePathname();
+  const { brand } = useAgentConfig();
 
   const navItems = [
     { href: "/", label: "COMMAND", icon: CommandIcon },
@@ -47,10 +48,10 @@ export default function Navbar() {
 
             <div className="flex flex-col">
               <span className="font-display font-bold text-lg tracking-wider text-text-primary">
-                {AGENT_CONFIG.brand.name}
+                {brand.name}
               </span>
               <span className="font-mono text-[10px] text-cyan tracking-[0.3em] uppercase">
-                {AGENT_CONFIG.brand.subtitle}
+                {brand.subtitle}
               </span>
             </div>
           </Link>

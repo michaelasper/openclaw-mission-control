@@ -9,73 +9,73 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Core void palette
-        void: '#030308',
-        abyss: '#07070f',
-        deep: '#0c0c18',
-        surface: '#12121f',
-        elevated: '#1a1a2e',
-        muted: '#252540',
+        // Core neutral palette
+        void: '#0f1115',
+        abyss: '#13161b',
+        deep: '#171b21',
+        surface: '#1d222a',
+        elevated: '#262d38',
+        muted: '#3a4352',
         
-        // Primary - Electric Cyan
+        // Primary accent (muted blue)
         cyan: {
-          glow: '#00f5ff',
-          bright: '#00d4e4',
-          DEFAULT: '#00a8b5',
-          dim: '#007a85',
+          glow: '#7aa2ff',
+          bright: '#6f95f7',
+          DEFAULT: '#5f84e8',
+          dim: '#4c68b8',
         },
         
-        // Accent - Neon Magenta
+        // Secondary accent
         magenta: {
-          glow: '#ff00ff',
-          bright: '#e100e1',
-          DEFAULT: '#b300b3',
-          dim: '#800080',
+          glow: '#9e8cff',
+          bright: '#8f7ef0',
+          DEFAULT: '#7d6ddc',
+          dim: '#6559b8',
         },
         
-        // Secondary - Violet
+        // Tertiary accent
         violet: {
-          glow: '#8b5cf6',
-          bright: '#7c3aed',
-          DEFAULT: '#6d28d9',
+          glow: '#8fb0ff',
+          bright: '#799af0',
+          DEFAULT: '#6686db',
         },
         
         // Status colors
-        success: '#00ff88',
-        warning: '#ffaa00',
-        danger: '#ff3366',
-        info: '#00aaff',
+        success: '#3fb884',
+        warning: '#d39b52',
+        danger: '#d06969',
+        info: '#5f84e8',
         
         // Text
-        'text-primary': '#f0f0ff',
-        'text-secondary': '#a0a0c0',
-        'text-muted': '#606080',
+        'text-primary': '#e8edf5',
+        'text-secondary': '#b3becf',
+        'text-muted': '#7f8a9d',
       },
       fontFamily: {
-        display: ['Orbitron', 'sans-serif'],
-        mono: ['Space Mono', 'monospace'],
-        body: ['Exo 2', 'sans-serif'],
-        reading: ['Newsreader', 'Georgia', 'Times New Roman', 'serif'],
+        display: ['Sora', 'sans-serif'],
+        mono: ['IBM Plex Mono', 'monospace'],
+        body: ['Sora', 'sans-serif'],
+        reading: ['Source Serif 4', 'Georgia', 'Times New Roman', 'serif'],
         code: ['JetBrains Mono', 'Fira Code', 'monospace'],
       },
       boxShadow: {
-        'glow-cyan': '0 0 20px rgba(0, 245, 255, 0.5), 0 0 40px rgba(0, 245, 255, 0.2)',
-        'glow-magenta': '0 0 20px rgba(255, 0, 255, 0.5), 0 0 40px rgba(255, 0, 255, 0.2)',
-        'glow-violet': '0 0 20px rgba(139, 92, 246, 0.5), 0 0 40px rgba(139, 92, 246, 0.2)',
-        'glow-success': '0 0 15px rgba(0, 255, 136, 0.4)',
-        'glow-warning': '0 0 15px rgba(255, 170, 0, 0.4)',
-        'glow-danger': '0 0 15px rgba(255, 51, 102, 0.4)',
-        'inner-glow': 'inset 0 0 20px rgba(0, 245, 255, 0.1)',
-        'glass': '0 4px 30px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+        'glow-cyan': '0 8px 24px rgba(95, 132, 232, 0.22)',
+        'glow-magenta': '0 8px 24px rgba(125, 109, 220, 0.2)',
+        'glow-violet': '0 8px 24px rgba(102, 134, 219, 0.2)',
+        'glow-success': '0 8px 20px rgba(63, 184, 132, 0.2)',
+        'glow-warning': '0 8px 20px rgba(211, 155, 82, 0.2)',
+        'glow-danger': '0 8px 20px rgba(208, 105, 105, 0.2)',
+        'inner-glow': 'inset 0 0 0 1px rgba(127, 138, 157, 0.2)',
+        'glass': '0 8px 24px rgba(5, 7, 10, 0.35)',
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
         'cyber-grid': `
-          linear-gradient(rgba(0, 245, 255, 0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(0, 245, 255, 0.03) 1px, transparent 1px)
+          linear-gradient(rgba(127, 138, 157, 0.06) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(127, 138, 157, 0.06) 1px, transparent 1px)
         `,
-        'holographic': 'linear-gradient(135deg, rgba(0, 245, 255, 0.1) 0%, rgba(255, 0, 255, 0.1) 50%, rgba(139, 92, 246, 0.1) 100%)',
+        'holographic': 'linear-gradient(135deg, rgba(95, 132, 232, 0.12) 0%, rgba(125, 109, 220, 0.12) 100%)',
       },
       animation: {
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite',

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pickTask, serializeTask } from '@/lib/local-storage';
 import { AgentId } from '@/lib/types';
+import { getRuntimeAgentIds, normalizeAgentId } from "@/lib/runtime-agent-config";
 
 export const dynamic = 'force-dynamic';
 
@@ -20,16 +21,16 @@ export async function POST(
       );
     }
 
-    // Validate agent
-    const validAgents = ['shri', 'leo', 'nova', 'pixel', 'cipher', 'echo', 'forge'];
-    if (!validAgents.includes(agent)) {
+    const agentId = normalizeAgentId(agent) as AgentId;
+    const validAgents = new Set(await getRuntimeAgentIds());
+    if (!validAgents.has(agentId)) {
       return NextResponse.json(
-        { success: false, error: `Invalid agent. Must be one of: ${validAgents.join(', ')}` },
+        { success: false, error: "Invalid agent ID" },
         { status: 400 }
       );
     }
 
-    const task = await pickTask(params.id, agent as AgentId);
+    const task = await pickTask(params.id, agentId);
 
     if (!task) {
       return NextResponse.json(
@@ -41,7 +42,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       task: serializeTask(task),
-      message: `Task picked up by ${agent}`,
+      message: `Task picked up by ${agentId}`,
     });
   } catch (error) {
     console.error('Error picking task:', error);

@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getMentionsForAgent, serializeMention } from '@/lib/local-storage';
 import { AgentId } from '@/lib/types';
-import { AGENT_CONFIG } from '@/lib/config';
+import { getRuntimeAgentIds, normalizeAgentId } from "@/lib/runtime-agent-config";
 
 export const dynamic = 'force-dynamic';
-
-const VALID_AGENTS: AgentId[] = AGENT_CONFIG.agents.map(a => a.id);
 
 // GET /api/mentions?agent=leo - Get unread mentions for an agent
 export async function GET(request: NextRequest) {
@@ -21,8 +19,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const agentId = agent.toLowerCase() as AgentId;
-    if (!VALID_AGENTS.includes(agentId)) {
+    const agentId = normalizeAgentId(agent) as AgentId;
+    const validAgents = new Set(await getRuntimeAgentIds());
+    if (!validAgents.has(agentId)) {
       return NextResponse.json(
         { success: false, error: 'Invalid agent ID' },
         { status: 400 }

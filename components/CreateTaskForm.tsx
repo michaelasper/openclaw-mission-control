@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { TaskPriority, AgentId, AGENTS } from '@/lib/types';
+import { useAgentConfig } from "@/components/AgentConfigProvider";
+import { TaskPriority, AgentId } from '@/lib/types';
 
 interface CreateTaskFormProps {
   onSuccess?: () => void;
@@ -10,6 +11,7 @@ interface CreateTaskFormProps {
 
 export default function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
   const router = useRouter();
+  const { agents } = useAgentConfig();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,15 +20,37 @@ export default function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
     description: '',
     priority: 'medium' as TaskPriority,
     assignee: '' as AgentId | '',
-    createdBy: 'leo',
+    createdBy: '',
     tags: '',
     dueDate: '',
   });
+
+  useEffect(() => {
+    if (agents.length === 0) return;
+
+    setFormData((prev) => {
+      const validCreatedBy = agents.some((agent) => agent.id === prev.createdBy);
+      const validAssignee =
+        prev.assignee === "" || agents.some((agent) => agent.id === prev.assignee);
+
+      return {
+        ...prev,
+        createdBy: validCreatedBy ? prev.createdBy : agents[0].id,
+        assignee: validAssignee ? prev.assignee : "",
+      };
+    });
+  }, [agents]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    if (!formData.createdBy) {
+      setError("No valid agents are configured");
+      setLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch('/api/tasks', {
@@ -140,7 +164,7 @@ export default function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
             className="w-full px-4 py-3 rounded-xl cyber-select text-text-primary font-body"
           >
             <option value="">Unassigned</option>
-            {AGENTS.map((agent) => (
+            {agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
                 {agent.emoji} {agent.name} - {agent.role}
               </option>
@@ -160,7 +184,7 @@ export default function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
             onChange={(e) => setFormData({ ...formData, createdBy: e.target.value })}
             className="w-full px-4 py-3 rounded-xl cyber-select text-text-primary font-body"
           >
-            {AGENTS.map((agent) => (
+            {agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
                 {agent.emoji} {agent.name}
               </option>
