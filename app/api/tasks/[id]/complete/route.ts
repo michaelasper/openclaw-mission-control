@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { completeTask, serializeTask } from '@/lib/local-storage';
+import { normalizePullRequests } from '@/lib/pull-requests';
 import { AgentId } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +12,7 @@ export async function POST(
 ) {
   try {
     const body = await request.json();
-    const { agent, note, deliverable, deliverables } = body;
+    const { agent, note, deliverable, deliverables, pullRequest, pullRequests } = body;
 
     if (!agent) {
       return NextResponse.json(
@@ -49,7 +50,23 @@ export async function POST(
       }
     }
 
-    const task = await completeTask(params.id, agent as AgentId, note, deliverables, deliverable);
+    const normalizedPrs = normalizePullRequests({ pullRequest, pullRequests });
+    if (normalizedPrs.error) {
+      return NextResponse.json(
+        { success: false, error: normalizedPrs.error },
+        { status: 400 }
+      );
+    }
+
+    const task = await completeTask(
+      params.id,
+      agent as AgentId,
+      note,
+      deliverables,
+      deliverable,
+      normalizedPrs.pullRequests,
+      pullRequest
+    );
 
     if (!task) {
       return NextResponse.json(

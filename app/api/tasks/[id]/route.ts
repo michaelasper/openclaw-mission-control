@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTask, updateTask, deleteTask, serializeTask } from '@/lib/local-storage';
+import { normalizePullRequests } from '@/lib/pull-requests';
 import { TaskStatus, TaskPriority, AgentId } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +40,7 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json();
-    const { title, description, status, priority, assignee, tags, dueDate, deliverable, deliverables } = body;
+    const { title, description, status, priority, assignee, tags, dueDate, deliverable, deliverables, pullRequest, pullRequests } = body;
 
     // Validate status if provided
     if (status && !['backlog', 'todo', 'in_progress', 'review', 'done'].includes(status)) {
@@ -77,6 +78,14 @@ export async function PATCH(
       }
     }
 
+    const normalizedPrs = normalizePullRequests({ pullRequest, pullRequests });
+    if (normalizedPrs.error) {
+      return NextResponse.json(
+        { success: false, error: normalizedPrs.error },
+        { status: 400 }
+      );
+    }
+
     const updateData: Partial<{
       title: string;
       description: string;
@@ -87,6 +96,8 @@ export async function PATCH(
       dueDate: Date | null;
       deliverable: string | null;
       deliverables: string[] | null;
+      pullRequest: string | null;
+      pullRequests: string[] | null;
     }> = {};
 
     if (title !== undefined) updateData.title = title;
@@ -98,6 +109,10 @@ export async function PATCH(
     if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
     if (deliverable !== undefined) updateData.deliverable = deliverable;
     if (deliverables !== undefined) updateData.deliverables = deliverables;
+    if (pullRequest !== undefined) updateData.pullRequest = pullRequest;
+    if (pullRequests !== undefined || normalizedPrs.pullRequests !== undefined) {
+      updateData.pullRequests = normalizedPrs.pullRequests || [];
+    }
 
     const task = await updateTask(params.id, updateData);
 

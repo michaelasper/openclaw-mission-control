@@ -58,6 +58,17 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
     return deliverables;
   }, [task.deliverable, task.deliverables]);
 
+  const allPullRequests = React.useMemo(() => {
+    const pullRequests: string[] = [];
+    if (task.pullRequests && task.pullRequests.length > 0) {
+      pullRequests.push(...task.pullRequests);
+    }
+    if (task.pullRequest && !pullRequests.includes(task.pullRequest)) {
+      pullRequests.unshift(task.pullRequest);
+    }
+    return pullRequests;
+  }, [task.pullRequest, task.pullRequests]);
+
   // Initialize deliverable states when deliverables change
   useEffect(() => {
     const newStates: Record<string, DeliverableState> = {};
@@ -645,6 +656,32 @@ export default function TaskDetail({ task: initialTask }: TaskDetailProps) {
                       year: 'numeric',
                     })}
                   </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Pull Requests */}
+          {allPullRequests.length > 0 && (
+            <div className="relative rounded-2xl overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-surface/80 to-deep/80 backdrop-blur-xl" />
+              <div className="absolute inset-0 rounded-2xl border border-elevated/50" />
+              <div className="relative p-5">
+                <label className="block font-mono text-[10px] text-text-muted tracking-wider uppercase mb-3">
+                  Pull Requests
+                </label>
+                <div className="space-y-2">
+                  {allPullRequests.map((prUrl) => (
+                    <a
+                      key={prUrl}
+                      href={prUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block rounded-lg border border-elevated/50 bg-abyss/40 px-3 py-2 font-mono text-xs text-cyan hover:border-cyan/40 hover:text-cyan-bright"
+                    >
+                      {prUrl}
+                    </a>
+                  ))}
                 </div>
               </div>
             </div>

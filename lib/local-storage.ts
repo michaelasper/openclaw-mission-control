@@ -110,10 +110,15 @@ async function writeMentions(mentions: Mention[]): Promise<void> {
 // ============ SERIALIZATION ============
 
 export function serializeTask(task: Task): SerializedTask {
-  // Handle backward compatibility: merge old deliverable into deliverables array
+  // Handle backward compatibility: merge old single fields into array fields
   let deliverables = task.deliverables || [];
   if (task.deliverable && !deliverables.includes(task.deliverable)) {
     deliverables = [task.deliverable, ...deliverables];
+  }
+
+  let pullRequests = task.pullRequests || [];
+  if (task.pullRequest && !pullRequests.includes(task.pullRequest)) {
+    pullRequests = [task.pullRequest, ...pullRequests];
   }
 
   return {
@@ -123,6 +128,8 @@ export function serializeTask(task: Task): SerializedTask {
     dueDate: task.dueDate || undefined,
     deliverable: task.deliverable,
     deliverables: deliverables.length > 0 ? deliverables : undefined,
+    pullRequest: task.pullRequest,
+    pullRequests: pullRequests.length > 0 ? pullRequests : undefined,
     comments: task.comments.map((c) => ({
       ...c,
       createdAt: c.createdAt,
@@ -225,6 +232,8 @@ export async function updateTask(
     dueDate: Date | null;
     deliverable: string | null;
     deliverables: string[] | null;
+    pullRequest: string | null;
+    pullRequests: string[] | null;
   }>,
 ): Promise<Task | null> {
   const tasks = await readTasks();
@@ -253,6 +262,24 @@ export async function updateTask(
   // Apply updates
   const { dueDate: _dd, ...otherFields } = updateFields;
   Object.assign(tasks[index], otherFields);
+
+  // Keep pullRequest/pullRequests in sync for backward compatibility
+  if (data.pullRequests !== undefined) {
+    tasks[index].pullRequests = data.pullRequests || undefined;
+    if (data.pullRequests && data.pullRequests.length > 0) {
+      tasks[index].pullRequest = data.pullRequests[0];
+    }
+  }
+  if (data.pullRequest !== undefined) {
+    tasks[index].pullRequest = data.pullRequest || undefined;
+    if (data.pullRequest) {
+      const existing = tasks[index].pullRequests || [];
+      if (!existing.includes(data.pullRequest)) {
+        tasks[index].pullRequests = [data.pullRequest, ...existing];
+      }
+    }
+  }
+
   tasks[index].updatedAt = new Date().toISOString();
 
   await writeTasks(tasks);
@@ -350,6 +377,8 @@ export async function completeTask(
   note?: string,
   deliverables?: string[],
   deliverable?: string,
+  pullRequests?: string[],
+  pullRequest?: string,
 ): Promise<Task | null> {
   const tasks = await readTasks();
   const index = tasks.findIndex((t) => t.id === taskId);
@@ -382,6 +411,26 @@ export async function completeTask(
     const existingDeliverables = tasks[index].deliverables || [];
     if (!existingDeliverables.includes(deliverable)) {
       tasks[index].deliverables = [deliverable, ...existingDeliverables];
+    }
+  }
+
+  // Handle pullRequests array (new format)
+  if (pullRequests && pullRequests.length > 0) {
+    const existingPullRequests = tasks[index].pullRequests || [];
+    tasks[index].pullRequests = Array.from(
+      new Set([...existingPullRequests, ...pullRequests]),
+    );
+    if (tasks[index].pullRequests.length > 0) {
+      tasks[index].pullRequest = tasks[index].pullRequests[0];
+    }
+  }
+
+  // Handle single pullRequest (backward compatibility)
+  if (pullRequest) {
+    tasks[index].pullRequest = pullRequest;
+    const existingPullRequests = tasks[index].pullRequests || [];
+    if (!existingPullRequests.includes(pullRequest)) {
+      tasks[index].pullRequests = [pullRequest, ...existingPullRequests];
     }
   }
 

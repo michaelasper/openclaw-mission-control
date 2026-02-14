@@ -62,6 +62,8 @@ export interface Task {
   workLog: WorkLogEntry[];
   deliverable?: string; // DEPRECATED: Use deliverables instead. Kept for backward compatibility
   deliverables?: string[]; // Array of file paths to the outputs
+  pullRequest?: string; // DEPRECATED: Use pullRequests instead. Kept for backward compatibility
+  pullRequests?: string[]; // Array of GitHub PR URLs
 }
 
 export interface Agent {
@@ -107,6 +109,8 @@ export interface SerializedTask {
   workLog: SerializedWorkLogEntry[];
   deliverable?: string; // DEPRECATED: Use deliverables instead. Kept for backward compatibility
   deliverables?: string[]; // Array of file paths to the outputs
+  pullRequest?: string; // DEPRECATED: Use pullRequests instead. Kept for backward compatibility
+  pullRequests?: string[]; // Array of GitHub PR URLs
 }
 
 export interface SerializedAgent {
